@@ -16,3 +16,11 @@ public class State
         
     }
 }
+
+
+public enum EBoidState
+{
+    Idle,
+    Feed,
+    Flee
+}

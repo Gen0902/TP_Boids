@@ -5,17 +5,14 @@ using UnityEngine;
 
 public class Boid : MonoBehaviour
 {
+    [HideInInspector]
     public Vector3 Position;
+    [HideInInspector]
     public Vector3 Velocity;
+    [HideInInspector]
     public List<Transform> Neighbors;
-
-    public Boid(Vector3 position, Vector3 velocity)
-    {
-        Position = position;
-        Velocity = velocity;
-        gameObject.transform.position = position;
-        gameObject.transform.rotation = Quaternion.LookRotation(Vector3.Normalize(velocity));
-    }
+    [HideInInspector]
+    public Vector3? targetPos;
 
     public void UpdateBoid(Vector3 position, Vector3 velocity)
     {
@@ -42,11 +39,11 @@ public class Boid : MonoBehaviour
         Neighbors = neighbors;
     }
 
-    public Vector3 Cohesion(float steps, float weight)
+    public Vector3 Cohesion(float weight)
     {
         var nCenter = Vector3.zero;
 
-        if (Neighbors.Count == 0 || steps < 1) return nCenter;
+        if (Neighbors.Count == 0) return nCenter;
 
         for (var i = 0; i < Neighbors.Count; ++i)
         {
@@ -61,7 +58,7 @@ public class Boid : MonoBehaviour
             }
         }
         nCenter = nCenter / Neighbors.Count;
-        return (nCenter - Position) / steps * weight;
+        return (nCenter - Position) / weight;
     }
 
     public Vector3 Separation(float weight)
@@ -98,12 +95,31 @@ public class Boid : MonoBehaviour
 
     public Vector3 Seek(Transform target, float weight)
     {
-        if (target == null)
-            return Velocity;
+        if (target != null)
+            targetPos = target.position;
+
         if (weight < 0.0001f) return Vector3.zero;
 
-        var desiredVelocity = (target.position - Position) * weight;
-        return desiredVelocity - Velocity;
+        if (targetPos != null)
+        {
+            var desiredVelocity = ((Vector3)targetPos - Position) * weight;
+            return desiredVelocity - Velocity;
+        }
+        else return Velocity;
+
+    }
+
+    public Vector3 Flee(Transform target, float weight)
+    {
+        if (weight < 0.0001f) return Vector3.zero;
+
+        if (target != null)
+        {
+            Vector3 fleeDir = Position - target.position;
+            var desiredVelocity = fleeDir/fleeDir.magnitude * weight;
+            return desiredVelocity - Velocity;
+        }
+        else return Velocity;
     }
 
     public Vector3 Socialize(List<Transform> boids, float weight)
@@ -134,22 +150,23 @@ public class Boid : MonoBehaviour
         return Vector3.Normalize(pc - Position) * weight;
     }
 
-    public Vector3 Arrival(Transform target, float slowingDistance, float maxSpeed)
+    public Vector3 Arrival(float arrivalDistance, float slowingDistance, float maxSpeed)
     {
-        if (target == null)
+        if (targetPos == null)
             return Velocity;
 
         var desiredVelocity = Vector3.zero;
         if (slowingDistance < 0.0001f) return desiredVelocity;
 
-        var targetOffset = target.position - Position;
-        var distance = Vector3.Distance(target.position, Position);
+        var targetOffset = (Vector3)targetPos - Position;
+        var distance = Vector3.Distance((Vector3)targetPos, Position);
         var rampedSpeed = maxSpeed * (distance / slowingDistance);
         var clippedSpeed = Mathf.Min(rampedSpeed, maxSpeed);
+
         if (distance > 0)
-        {
             desiredVelocity = (clippedSpeed / distance) * targetOffset;
-        }
+        if (distance <= arrivalDistance)
+            targetPos = null;
         return desiredVelocity - Velocity;
     }
 
@@ -166,21 +183,6 @@ public class Boid : MonoBehaviour
     public Vector3 LimitRotation(Vector3 v, float maxAngle, float maxSpeed)
     {
         return Vector3.RotateTowards(Velocity, v, maxAngle * Mathf.Deg2Rad, maxSpeed);
-    }
-
-    /////////////Collision detection
-
-    public Vector3 CalculateAvoidance(float boundsRadius, float collisionAvoidDst, LayerMask obstacleMask)
-    {
-        Vector3 avoidanceMove = Vector3.zero;
-        RaycastHit hit;
-        if (Physics.SphereCast(transform.position, boundsRadius, transform.forward, out hit, collisionAvoidDst, obstacleMask))
-        {
-            avoidanceMove = hit.normal;
-
-            return avoidanceMove;
-        }
-        return avoidanceMove;
     }
 
 }
